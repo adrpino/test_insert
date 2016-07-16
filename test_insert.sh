@@ -60,6 +60,16 @@ function gen_data() {
         return 1
     fi
     NUM_LINES=$1
+    LINE_BLOCK=100000
+    NUM_REPEATS=1
+    # generate data in chunks of a million and then shuffle it
+    if [[ $NUM_LINES -ge $LINE_BLOCK ]]
+    then
+        $NUM_LINES=$LINE_BLOCK
+        NUM_REPEATS=$(( NUM_LINES/LINE_BLOCK ))
+        NUM_LINES=$LINE_BLOCK
+    fi
+
     echo col1
     cat /dev/urandom | tr -dc A-Za-z | fold -b$COL1_W | head -n$NUM_LINES > \
         "/tmp/col1" &
@@ -105,14 +115,22 @@ function gen_data() {
     # Paste columns:
     echo pasting
     DELIM=","
-    paste -d$DELIM /tmp/col1 /tmp/col2 /tmp/col3 /tmp/col4 > /tmp/file_insert
+    paste -d$DELIM /tmp/col1 /tmp/col2 /tmp/col3 /tmp/col4 > /tmp/file_insert_shuf
+
+    # Shuffle for each split:
+    rm -f /tmp/file_insert
+    echo shuffling file $NUM_REPEATS times
+    for IND in `seq 1 $NUM_REPEATS`
+    do
+        shuf /tmp/file_insert_shuf >> /tmp/file_insert
+    done
 }
 
 function create_indices() {
     # Rebuild indices
     echo "Rebuilding indices"
     T0=$(date +%s)
-    for IND in seq 1 3
+    for IND in `seq 1 3`
     do
         COMMAND='CREATE INDEX "ind_col'$IND'"
          ON test_insert USING btree ("col'$IND'");'
@@ -134,6 +152,11 @@ function drop_indices() {
     done
 }
 
+function drop_test_data() {
+    # Drops data with column = 1
+    psql -d test -c "DELETE FROM test_insert where col4=1;"
+}
+
 function insert_data() {
     # Does what it says
     if [[ -z ${1+x} ]]
@@ -144,23 +167,42 @@ function insert_data() {
     then
         echo "Insert dropping indices"
         drop_indices
+        copy_data
+        create_indices
     elif [[ ! -z ${1+x} && $1 -eq 0 ]]
     then
         echo "Insert without dropping indices"
+        copy_data
     else
         echo "You screwed something up"
+        return 1
+    fi
+
+    #COMMAND='\copy tmp_x FROM '/tmp/file_insert' DELIMITER ',' CSV HEADER;'
+    COMMAND='\copy tmp_x FROM '/tmp/file_insert' DELIMITER ',' CSV HEADER;'
+}
+
+function copy_data() {
+    if [ ! -f /tmp/file_insert ]
+    then
+        echo No file to insert
+        return 1
+    else
+        COMMAND="\copy test_insert FROM '/tmp/file_insert' DELIMITER ',' CSV HEADER;"
+        psql -d test -c "$COMMAND"
     fi
 }
 
 function reset_db() {
     # Drop table, generates a file of given size, insert and sets indices
-    psql -d "postgres" -c "create database if IF NOT EXISTS test"
-    psql -d "postgres" -c "drop table IF EXISTS test_insert ;" 
-    psql -d "postgres" -c "create table test_insert ( col1 character varying,
-    col2 int, col3 datetime);" -q
+    psql  -d "postgres" -c "drop database test;"
+    psql  -d "postgres" -c "create database test;"
+    psql -d test -c "create table test_insert ( col1 character varying,
+    col2 int, col3 timestamp, col4 smallint);" -q
+    create_indices
     if [[ -z ${1+x} ]]
     then
-        echo "set how many lines you want for creating the db"
+        echo "Database created but no data inserted"
         return 1
     elif [[ !( -z ${1+x}) && $1 -ge 1 ]]
     then
@@ -169,4 +211,27 @@ function reset_db() {
         echo "set a numeric number of rows greater than 1"
         return 1
     fi
+}
+
+function benchmark() {
+    LO_SIZE=10000000
+    HI_SIZE=100000000
+    IN_SIZE=10000000
+    INITIAL_SIZE=10000000
+    # File with results:
+    echo "initial_size,size,index,time" > /tmp/results
+    # Initial data:
+    gen_data $INITIAL_SIZE 0 0
+
+    for IND in `seq 0 1`
+    do
+    for SIZE in `seq $LO_SIZE $IN_SIZE $HI_SIZE`
+    do 
+        gen_data $SIZE 1
+        T0=$(date +%s);
+        insert_data $IND
+        T1=$(date +%s);
+        echo "$INITIAL_SIZE,$SIZE, $IND, $(( T1-T0 ))" >> /tmp/results
+    done
+    done
 }

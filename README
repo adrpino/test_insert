@@ -1,0 +1,6 @@
+These scripts test she insert speed of with files of varying sizes
+keeping or dropping the indices
+
+It creates a local postgresql database so you need to have the postgresql
+server installed, have a role for your user and alter its permissions to
+be able to create databases.
