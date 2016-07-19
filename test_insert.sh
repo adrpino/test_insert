@@ -114,9 +114,9 @@ function gen_data() {
     echo pasting
     DELIM=","
     paste -d$DELIM /tmp/col1 /tmp/col2 /tmp/col3 /tmp/col4 > /tmp/file_insert_shuf
-
+    # header file
+    echo "col1,col2,col3,col4" > /tmp/file_insert
     # Shuffle for each split:
-    rm -f /tmp/file_insert
     echo shuffling file $NUM_REPEATS times
     for IND_SHUF in `seq 1 $NUM_REPEATS`
     do
@@ -216,7 +216,7 @@ function benchmark() {
     reset_db
     # Low value, high value, and increment
     LO_SIZE=1000000
-    HI_SIZE=10000000
+    HI_SIZE=5000000
     IN_SIZE=1000000
     INITIAL_SIZE=10000000
     # File with results:
