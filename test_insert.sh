@@ -19,7 +19,6 @@ function shuf_rep() {
         return 1
     fi
 
-    #TODO seemingly faster implementation:
     NUM_LINES=$1
     MIN_VAL=$2
     MAX_VAL=$3
@@ -51,21 +50,20 @@ function gen_data() {
     if [[ -z ${1+x} ]]
     then
         # Set a default value for dataset rows:
-        echo "rows unset"
+        echo "Number of rows of gen_data unset"
         return 1
     fi
     if [[ -z ${2+x} ]]
     then
-        echo "Set second argument to 0 or 1"
+        echo "Set second argument to 0 or 1 (test column)"
         return 1
     fi
     NUM_LINES=$1
     LINE_BLOCK=100000
     NUM_REPEATS=1
-    # generate data in chunks of a million and then shuffle it
+    # generate data in chunks and then shuffle it
     if [[ $NUM_LINES -ge $LINE_BLOCK ]]
     then
-        $NUM_LINES=$LINE_BLOCK
         NUM_REPEATS=$(( NUM_LINES/LINE_BLOCK ))
         NUM_LINES=$LINE_BLOCK
     fi
@@ -120,7 +118,7 @@ function gen_data() {
     # Shuffle for each split:
     rm -f /tmp/file_insert
     echo shuffling file $NUM_REPEATS times
-    for IND in `seq 1 $NUM_REPEATS`
+    for IND_SHUF in `seq 1 $NUM_REPEATS`
     do
         shuf /tmp/file_insert_shuf >> /tmp/file_insert
     done
@@ -130,10 +128,10 @@ function create_indices() {
     # Rebuild indices
     echo "Rebuilding indices"
     T0=$(date +%s)
-    for IND in `seq 1 3`
+    for IND_CREATE in `seq 1 3`
     do
-        COMMAND='CREATE INDEX "ind_col'$IND'"
-         ON test_insert USING btree ("col'$IND'");'
+        COMMAND='CREATE INDEX "ind_col'$IND_CREATE'"
+         ON test_insert USING btree ("col'$IND_CREATE'");'
         echo $COMMAND
         psql -d test -c "$COMMAND" 
     done
@@ -144,9 +142,9 @@ function create_indices() {
 
 function drop_indices() {
     # Drop indices
-    for IND in seq 1 3
+    for IND_DROP in `seq 1 3`
     do
-        COMMAND='DROP INDEX IF EXISTS "ind_col'$IND'"'
+        COMMAND='DROP INDEX IF EXISTS "ind_col'$IND_DROP'"'
         echo $COMMAND
         psql -d test -c "$COMMAND"
     done
@@ -163,7 +161,7 @@ function insert_data() {
     then
         echo "please say whether you want to drop indices or not"
         return 1
-    elif [[ !( -z ${1+x}) && $1 -eq 1 ]]
+    elif [[ ! -z ${1+x} && $1 -eq 1 ]]
     then
         echo "Insert dropping indices"
         drop_indices
@@ -174,7 +172,7 @@ function insert_data() {
         echo "Insert without dropping indices"
         copy_data
     else
-        echo "You screwed something up"
+        echo "error in parameters of test_insert"
         return 1
     fi
 
@@ -214,24 +212,32 @@ function reset_db() {
 }
 
 function benchmark() {
-    LO_SIZE=10000000
-    HI_SIZE=100000000
-    IN_SIZE=10000000
+    # Leave it clean
+    reset_db
+    # Low value, high value, and increment
+    LO_SIZE=1000000
+    HI_SIZE=10000000
+    IN_SIZE=1000000
     INITIAL_SIZE=10000000
     # File with results:
     echo "initial_size,size,index,time" > /tmp/results
     # Initial data:
-    gen_data $INITIAL_SIZE 0 0
+    gen_data $INITIAL_SIZE 0
 
-    for IND in `seq 0 1`
+    for IND_INDEX in `seq 0 1`
     do
-    for SIZE in `seq $LO_SIZE $IN_SIZE $HI_SIZE`
+    for SIZE_INS in `seq $LO_SIZE $IN_SIZE $HI_SIZE`
     do 
-        gen_data $SIZE 1
+
+        echo 'testing with IND '$IND_INDEX', and '$SIZE' rows'
+        # produce some random test data
+        gen_data $SIZE_INS 1
         T0=$(date +%s);
-        insert_data $IND
+        insert_data $IND_INDEX
         T1=$(date +%s);
-        echo "$INITIAL_SIZE,$SIZE, $IND, $(( T1-T0 ))" >> /tmp/results
+        # remove the inserted data
+        drop_test_data
+        echo "$INITIAL_SIZE,$SIZE_INS, $IND_INDEX, $(( T1-T0 ))" >> /tmp/results
     done
     done
 }
