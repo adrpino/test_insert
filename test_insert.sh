@@ -228,15 +228,18 @@ function benchmark() {
     do
     for SIZE_INS in `seq $LO_SIZE $IN_SIZE $HI_SIZE`
     do 
-
         echo 'testing with IND '$IND_INDEX', and '$SIZE' rows'
         # produce some random test data
         gen_data $SIZE_INS 1
         T0=$(date +%s);
         insert_data $IND_INDEX
         T1=$(date +%s);
+
         # remove the inserted data
         drop_test_data
+
+        # Vacuum table to leave into the original stage
+        psql -d test -c "VACUUM test_insert;"
         echo "$INITIAL_SIZE,$SIZE_INS, $IND_INDEX, $(( T1-T0 ))" >> /tmp/results
     done
     done
