@@ -216,11 +216,15 @@ function benchmark() {
     LO_SIZE=100000
     HI_SIZE=1000000
     IN_SIZE=100000
-    LO_INITIAL=10000000
-    HI_INITIAL=10000000
-    IN_INITIAL=10000000
+    # Initial values of the table
+    LO_INITIAL=1000000
+    HI_INITIAL=2000000
+    IN_INITIAL=1000000
+    # Number of repeats:
+    N_REPEATS=2
     # File with results:
-    echo "initial_size,size,index,time" > /tmp/results
+    echo "initial_size,insert_size,index,time" > /tmp/results
+    for REP in `seq 1 $N_REPEATS`; do
     for INITIAL_SIZE in `seq $LO_INITIAL $IN_INITIAL $HI_INITIAL`
     do
     # Leave it clean
@@ -246,6 +250,7 @@ function benchmark() {
         # Vacuum table to leave into the original stage
         psql -d test -c "VACUUM test_insert;"
         echo "$INITIAL_SIZE,$SIZE_INS, $IND_INDEX, $(( T1-T0 ))" >> /tmp/results
+    done
     done
     done
     done
