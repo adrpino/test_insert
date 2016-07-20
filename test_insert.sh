@@ -212,23 +212,28 @@ function reset_db() {
 }
 
 function benchmark() {
-    # Leave it clean
-    reset_db
     # Low value, high value, and increment
-    LO_SIZE=1000000
-    HI_SIZE=5000000
-    IN_SIZE=1000000
-    INITIAL_SIZE=10000000
+    LO_SIZE=100000
+    HI_SIZE=1000000
+    IN_SIZE=100000
+    LO_INITIAL=10000000
+    HI_INITIAL=10000000
+    IN_INITIAL=10000000
     # File with results:
     echo "initial_size,size,index,time" > /tmp/results
-    # Initial data:
+    for INITIAL_SIZE in `seq $LO_INITIAL $IN_INITIAL $HI_INITIAL`
+    do
+    # Leave it clean
+    reset_db
+    # Gen initial data
     gen_data $INITIAL_SIZE 0
-
+    # Insert it (no matter much since the table is empty)
+    insert_data 1
     for IND_INDEX in `seq 0 1`
     do
     for SIZE_INS in `seq $LO_SIZE $IN_SIZE $HI_SIZE`
     do 
-        echo 'testing with IND '$IND_INDEX', and '$SIZE' rows'
+        echo 'testing with IND '$IND_INDEX', and '$SIZE_INS' rows'
         # produce some random test data
         gen_data $SIZE_INS 1
         T0=$(date +%s);
@@ -241,6 +246,7 @@ function benchmark() {
         # Vacuum table to leave into the original stage
         psql -d test -c "VACUUM test_insert;"
         echo "$INITIAL_SIZE,$SIZE_INS, $IND_INDEX, $(( T1-T0 ))" >> /tmp/results
+    done
     done
     done
 }
